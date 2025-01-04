@@ -3,8 +3,39 @@ import heapq
 import time
 from instances import instances
 
+
+def get_cost(distance):
+    """
+    Get the cost associated with a given distance.
+
+    Parameters:
+    distance (int): The distance to calculate the cost for.
+
+    Returns:
+    int: The cost associated with the distance.
+    """
+    return {
+        0: 0,
+        1: 0,
+        2: 1,
+        3: 2,
+        4: 4,
+        5: 8
+    }.get(distance, 10)
+
+
 class StationOptimization:
+    """
+    A class to optimize the placement of stations to minimize travel cost for families.
+    """
+
     def __init__(self, family_distribution):
+        """
+        Initialize the StationOptimization class.
+
+        Parameters:
+        family_distribution (list of int): The distribution of families in the grid.
+        """
         self.family_distribution = np.array(family_distribution)
         self.N, self.M = self.family_distribution.shape
         self.generations = 0
@@ -12,17 +43,16 @@ class StationOptimization:
         self.max_stations = 5
         self.memo = {}
 
-    def get_cost(self, distance):
-        return {
-            0: 0,
-            1: 0,
-            2: 1,
-            3: 2,
-            4: 4,
-            5: 8
-        }.get(distance, 10)
-
     def heuristic(self, state):
+        """
+        Calculate the heuristic value for a given state.
+
+        Parameters:
+        state (set of tuple of int): The current state of station placements.
+
+        Returns:
+        float: The heuristic value of the state.
+        """
         if not state:
             return float('inf')
 
@@ -32,24 +62,33 @@ class StationOptimization:
         for x in range(self.N):
             for y in range(self.M):
                 if self.family_distribution[x, y] > 0:
-                    nearest_station_dist = min((max(abs(x - sx), abs(y - sy)) for sx, sy in state), default=10)
+                    nearest_station_dist = min(
+                        (max(abs(x - sx), abs(y - sy)) for sx, sy in state), default=10)
                     total_families += self.family_distribution[x, y]
-                    cost = self.get_cost(nearest_station_dist)
+                    cost = get_cost(nearest_station_dist)
                     total_travel_cost += cost * self.family_distribution[x, y]
 
-        A = len(state)
-        B = total_travel_cost / total_families if total_families != 0 else float('inf')
+        a = len(state)
+        b = total_travel_cost / total_families if total_families != 0 else float('inf')
 
-        if B >= 3.2 and len(state) > 2:
+        if b >= 3.2 and len(state) > 2:
             return float('inf')
 
-    
-        if B >= 5 and len(state) <= 2:
+        if b >= 5 and len(state) <= 2:
             return float('inf')
 
-        return 1000 * A + 100 * B 
+        return 1000 * a + 100 * b
 
     def cost(self, state):
+        """
+        Calculate the cost for a given state.
+
+        Parameters:
+        state (set of tuple of int): The current state of station placements.
+
+        Returns:
+        float: The cost of the state.
+        """
         state_tuple = tuple(sorted(state))
         if state_tuple in self.memo:
             return self.memo[state_tuple]
@@ -60,25 +99,35 @@ class StationOptimization:
         for x in range(self.N):
             for y in range(self.M):
                 if self.family_distribution[x, y] > 0:
-                    nearest_station_dist = min((max(abs(x - sx), abs(y - sy)) for sx, sy in state), default=20)
+                    nearest_station_dist = min(
+                        (max(abs(x - sx), abs(y - sy)) for sx, sy in state), default=20)
                     total_families += self.family_distribution[x, y]
-                    total_travel_cost += self.get_cost(nearest_station_dist) * self.family_distribution[x, y]
+                    total_travel_cost += get_cost(nearest_station_dist) * self.family_distribution[x, y]
 
-        A = len(state)
-        B = total_travel_cost / total_families if total_families != 0 else float('inf')
+        a = len(state)
+        b = total_travel_cost / total_families if total_families != 0 else float('inf')
 
-        cost_value = 1000 * A + 100 * B
+        cost_value = 1000 * a + 100 * b
         self.memo[state_tuple] = cost_value
-        
+
         self.evaluations += 1
         print(f"Avaliações: {self.evaluations}, Gerações: {self.generations}")
 
         return cost_value
 
     def get_neighbors(self, state):
+        """
+        Get the neighboring states for a given state.
+
+        Parameters:
+        state (set of tuple of int): The current state of station placements.
+
+        Returns:
+        list of set of tuple of int: The neighboring states.
+        """
         neighbors = []
         sorted_families = sorted(
-            ((x, y) for x in range(self.N) for y in range(self.M) if 0 < x < self.N-1 and 0 < y < self.M-1), 
+            ((x, y) for x in range(self.N) for y in range(self.M) if 0 < x < self.N - 1 and 0 < y < self.M - 1),
             key=lambda pos: -self.family_distribution[pos[0], pos[1]]
         )
 
@@ -99,6 +148,12 @@ class StationOptimization:
         return neighbors
 
     def a_star(self):
+        """
+        Perform the A* search algorithm to find the optimal station placements.
+
+        Returns:
+        dict: The best solutions found during the search.
+        """
         max_generations = 1000000
         max_time = 60
 
@@ -116,7 +171,6 @@ class StationOptimization:
             self.generations += 1
             if self.generations >= max_generations or current_time - start_time >= max_time:
                 print("Time limit or number of generations reached.")
-
                 break
 
             _, current = heapq.heappop(frontier)
@@ -126,19 +180,19 @@ class StationOptimization:
                 continue
             explored.add(current_tuple)
 
-            
-
             current_cost = self.cost(current)
             total_travel_cost = sum(
-                self.get_cost(min((max(abs(x - sx), abs(y - sy)) for sx, sy in current), default=20)) * self.family_distribution[x, y]
+                get_cost(min((max(abs(x - sx), abs(y - sy)) for sx, sy in current), default=20)) *
+                self.family_distribution[x, y]
                 for x in range(self.N) for y in range(self.M) if self.family_distribution[x, y] > 0
             )
             total_families = sum(self.family_distribution[x, y] for x in range(self.N) for y in range(self.M))
-            B = total_travel_cost / total_families if total_families != 0 else float('inf')
+            b = total_travel_cost / total_families if total_families != 0 else float('inf')
 
             num_stations = len(current)
-            if B < 3 and (num_stations not in best_solutions or B < best_solutions[num_stations][2]):
-                best_solutions[num_stations] = (current, current_cost, B, self.generations, current_time - start_time, self.evaluations)
+            if b < 3 and (num_stations not in best_solutions or b < best_solutions[num_stations][2]):
+                best_solutions[num_stations] = (
+                    current, current_cost, b, self.generations, current_time - start_time, self.evaluations)
 
             neighbors = self.get_neighbors(current)
             for next_state in neighbors:
@@ -152,6 +206,12 @@ class StationOptimization:
         return best_solutions
 
     def visualize_map(self, stations):
+        """
+        Visualize the map with the given station placements.
+
+        Parameters:
+        stations (set of tuple of int): The station placements to visualize.
+        """
         color_map = {
             0: "\033[34m",
             1: "\033[32m",
@@ -173,7 +233,11 @@ class StationOptimization:
                     print(f"{color_map[dist]}{self.family_distribution[i][j]:2}\033[0m", end=" ")
             print()
 
+
 def menu():
+    """
+    Display the menu and handle user input.
+    """
     while True:
         print("Choose an option:")
         print("1. Calculate solution for a specific instance")
@@ -181,7 +245,6 @@ def menu():
         print("3. Calculate solutions for a range of instances")
         print("4. Exit")
         choice = input("Enter your choice (1/2/3/4): ")
-
 
         if choice == '1':
             print(f"There's {len(instances)} instances available.")
@@ -192,8 +255,11 @@ def menu():
                 best_solutions = optimizer.a_star()
                 print(f"Generations: {optimizer.generations}")
                 for num_stations in sorted(best_solutions.keys()):
-                    stations, total_cost, B, generations, time_spent, evaluations = best_solutions[num_stations]
-                    print(f"Total stations: {num_stations}, Total Cost: {total_cost}, Average Travel Cost: {B}, Stations: {stations}, Time: {time_spent:.2f}s, Generations: {generations}, Evaluations: {evaluations}")
+                    stations, total_cost, b, generations, time_spent, evaluations = best_solutions[num_stations]
+                    print(
+                        f"Total stations: {num_stations}, Total Cost: {total_cost}, Average Travel Cost: {b}, "
+                        f"Stations: {stations}, Time: {time_spent:.2f}s, Generations: {generations}, "
+                        f"Evaluations: {evaluations}")
                     optimizer.visualize_map(stations)
                     print()
             else:
@@ -206,8 +272,11 @@ def menu():
                 best_solutions = optimizer.a_star()
                 print(f"Generations: {optimizer.generations}")
                 for num_stations in sorted(best_solutions.keys()):
-                    stations, total_cost, B, generations, time_spent, evaluations = best_solutions[num_stations]
-                    print(f"Total stations: {num_stations}, Total Cost: {total_cost}, Average Travel Cost: {B}, Stations: {stations}, Time: {time_spent:.2f}s, Generations: {generations}, Evaluations: {evaluations}")
+                    stations, total_cost, b, generations, time_spent, evaluations = best_solutions[num_stations]
+                    print(
+                        f"Total stations: {num_stations}, Total Cost: {total_cost}, Average Travel Cost: {b},"
+                        f" Stations: {stations}, Time: {time_spent:.2f}s, Generations: {generations},"
+                        f" Evaluations: {evaluations}")
                     optimizer.visualize_map(stations)
                     print()
         elif choice == '3':
@@ -222,8 +291,11 @@ def menu():
                     best_solutions = optimizer.a_star()
                     print(f"Generations: {optimizer.generations}")
                     for num_stations in sorted(best_solutions.keys()):
-                        stations, total_cost, B, generations, time_spent, evaluations = best_solutions[num_stations]
-                        print(f"Total stations: {num_stations}, Total Cost: {total_cost}, Average Travel Cost: {B}, Stations: {stations}, Time: {time_spent:.2f}s, Generations: {generations}, Evaluations: {evaluations}")
+                        stations, total_cost, b, generations, time_spent, evaluations = best_solutions[num_stations]
+                        print(
+                            f"Total stations: {num_stations}, Total Cost: {total_cost}, Average Travel Cost: {b}, "
+                            f"Stations: {stations}, Time: {time_spent:.2f}s, Generations: {generations}, Evaluations: "
+                            f"{evaluations}")
                         optimizer.visualize_map(stations)
                         print()
             else:
@@ -232,6 +304,7 @@ def menu():
             break
         else:
             print("Invalid choice. Try again (1-4)")
+
 
 if __name__ == "__main__":
     menu()
